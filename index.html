@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Webcam - Good or Bad Classification</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #FF6600;
+            color: white;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            text-align: center;
+        }
+        h1 {
+            color: white;
+        }
+        #buttons-container {
+            margin-top: 20px;
+        }
+        button {
+            background-color: white;
+            color: #FF6600;
+            border: none;
+            padding: 10px 20px;
+            margin: 10px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: transform 0.1s ease;
+        }
+        button:active {
+            transform: scale(0.95);
+        }
+        #webcam-container, #label-container {
+            text-align: center;
+            margin-top: 20px;
+            background-color: rgba(255, 255, 255, 0.1);
+            padding: 10px;
+            border-radius: 10px;
+        }
+        #prediction-result {
+            font-size: 24px;
+            font-weight: bold;
+            margin-top: 20px;
+            color: white;
+        }
+        canvas {
+            display: block;
+            margin: 0 auto;
+        }
+        #countdown {
+            font-size: 48px;
+            font-weight: bold;
+            color: white;
+            margin-top: 20px;
+        }
+        #definition {
+            margin-top: 20px;
+            font-size: 18px;
+            background-color: rgba(255, 255, 255, 0.1);
+            padding: 10px;
+            border-radius: 10px;
+        }
+        .bubble-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            pointer-events: none;
+            z-index: -1;
+        }
+        .bubble {
+            position: absolute;
+            bottom: -50px;
+            background-color: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            animation: rise linear infinite;
+        }
+        @keyframes rise {
+            0% {
+                transform: translateY(0);
+            }
+            100% {
+                transform: translateY(-100vh);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="bubble-container" id="bubbleContainer"></div>
+    <h1>AI Webcam - Good or Bad Classification</h1>
+
+    <div id="definition">
+        <p>👍 Thumbs up = Good</p>
+        <p>👎 Thumbs down = Bad</p>
+    </div>
+
+    <div id="buttons-container">
+        <button type="button" id="recordButton" onclick="startRecording()">Record and Predict</button>
+    </div>
+
+    <div id="webcam-container"></div>
+    <div id="countdown"></div>
+    <div id="prediction-result">Prediction: <span id="prediction">N/A</span></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+    <script type="text/javascript">
+        let model, webcam, maxPredictions;
+
+        // Initialize the webcam and model
+        async function initWebcam() {
+            try {
+                const URL = "./";  // Points to the current directory
+                const modelURL = URL + "model.json";
+                const metadataURL = URL + "metadata.json";
+                model = await tmImage.load(modelURL, metadataURL);
+
+                maxPredictions = model.getTotalClasses();
+
+                // Set up webcam
+                const flip = true; // whether to flip the webcam
+                webcam = new tmImage.Webcam(400, 400, flip); // width, height, flip
+                await webcam.setup(); // request access to the webcam
+                await webcam.play();
+
+                // Append webcam stream to the container
+                document.getElementById("webcam-container").appendChild(webcam.canvas);
+                window.requestAnimationFrame(loop);
+            } catch (error) {
+                console.error("Error initializing webcam or model:", error);
+            }
+        }
+
+        // Continuously loop through webcam frames
+        async function loop() {
+            webcam.update(); // Update the webcam frame
+            window.requestAnimationFrame(loop); // Keep looping
+        }
+        // Start the countdown and then capture the last frame for prediction
+        async function startRecording() {
+            document.getElementById("countdown").innerText = "";
+            for (let i = 5; i > 0; i--) {
+                document.getElementById("countdown").innerText = i;
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+            document.getElementById("countdown").innerText = "Time's up!";
+
+            // Introduce a short delay to ensure the frame is updated
+            await new Promise(resolve => setTimeout(resolve, 500));
+
+            // Predict directly from the webcam feed
+            predict();
+        }
+
+        // Run predictions based on the captured image
+        async function predict() {
+            if (model && webcam) {
+                const prediction = await model.predict(webcam.canvas);
+                let highestProbability = 0;
+                let bestPrediction = "N/A";
+
+                // Find the prediction with the highest probability
+                for (let i = 0; i < maxPredictions; i++) {
+                    if (prediction[i].probability > highestProbability) {
+                        highestProbability = prediction[i].probability;
+                        bestPrediction = prediction[i].className;
+                    }
+                }
+
+                // Display the best prediction on the screen
+                document.getElementById("prediction").innerText = bestPrediction;
+            }
+        }
+
+        // Add this function to create bubbles
+        function createBubbles() {
+            const bubbleContainer = document.getElementById('bubbleContainer');
+            const bubbleCount = 50;
+
+            for (let i = 0; i < bubbleCount; i++) {
+                const bubble = document.createElement('div');
+                bubble.classList.add('bubble');
+                bubble.style.left = `${Math.random() * 100}%`;
+                bubble.style.width = `${Math.random() * 30 + 10}px`;
+                bubble.style.height = bubble.style.width;
+                bubble.style.animationDuration = `${Math.random() * 15 + 5}s`;
+                bubble.style.animationDelay = `${Math.random() * 5}s`;
+                bubbleContainer.appendChild(bubble);
+            }
+        }
+
+        // Call createBubbles function when the window loads
+        window.onload = function() {
+            initWebcam();
+            createBubbles();
+        };
+    </script>
+</body>
+</html>
